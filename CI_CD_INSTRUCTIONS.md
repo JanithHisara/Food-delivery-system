@@ -73,18 +73,9 @@ You must add these credentials in Jenkins for the pipeline to work.
 - **ID**: `docker-hub-login`
 - **Description**: Docker Hub Credentials
 
-#### B. Secrets (Mongo URI & JWT)
-- **Kind**: Secret text
-- **Scope**: Global
-- **Secret**: `mongodb://mongo:27017/food_delivery` (or your Atlas URI)
-- **ID**: `mongo-uri`
-- **Description**: Production Mongo URI
----
-- **Kind**: Secret text
-- **Scope**: Global
-- **Secret**: `your-super-secure-secret-key-12345`
-- **ID**: `jwt-secret`
-- **Description**: JWT Secret Key
+#### B. Secrets (Removed)
+*Mongo URI and JWT Secret are now handled automatically.*
+
 
 #### C. EC2 SSH Key (For Remote Deployment)
 - **Kind**: SSH Username with private key

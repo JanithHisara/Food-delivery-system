@@ -34,19 +34,17 @@ pipeline {
 
     stage('Create Secrets') {
       steps {
-        // Requires 'mongo-uri' and 'jwt-secret' (Secret text) in Jenkins
-        withCredentials([string(credentialsId: 'mongo-uri', variable: 'MONGO_URI_VAL'), string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET_VAL')]) {
-          sh '''
-            set -e
-            echo "Creating backend/.env from Jenkins secrets..."
-            cat > backend/.env <<EOF
+        // Simple .env creation without Jenkins credentials for Mongo/JWT
+        sh '''
+          set -e
+          echo "Creating backend/.env..."
+          cat > backend/.env <<EOF
 PORT=4000
 NODE_ENV=production
-MONGO_URI=$MONGO_URI_VAL
-JWT_SECRET=$JWT_SECRET_VAL
+MONGO_URI=mongodb://mongo:27017/food_delivery
+JWT_SECRET=secure-production-secret-123
 EOF
-          '''
-        }
+        '''
       }
     }
 
