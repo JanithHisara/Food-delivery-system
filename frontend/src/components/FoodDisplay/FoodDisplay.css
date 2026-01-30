@@ -1,0 +1,157 @@
+.food-display {
+  margin-top: 30px;
+  padding: 0 20px;
+}
+
+.food-display h2 {
+  font-size: max(2vw, 24px);
+  font-weight: 600;
+}
+
+.food-display-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  margin-top: 30px;
+  gap: 30px;
+  row-gap: 50px;
+}
+
+.filters-btn-container {
+  margin: 20px 0;
+  text-align: right;
+}
+
+.filters-btn {
+  padding: 10px 16px;
+  background-color: #0a74da;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 30px 0;
+  gap: 12px;
+}
+
+.page-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.page-button {
+  padding: 6px 12px;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  background-color: white;
+  cursor: pointer;
+}
+
+.page-button.active {
+  background-color: #0a74da;
+  color: white;
+  border-color: #0a74da;
+}
+
+.arrow {
+  padding: 6px 12px;
+  font-size: 18px;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.arrow.disabled {
+  color: #ccc;
+  cursor: not-allowed;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0,0,0,0.5);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 25px;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.filter-item {
+  margin-bottom: 16px;
+}
+
+.filter-item label {
+  display: block;
+  font-weight: 500;
+}
+
+.filter-item input,
+.filter-item select {
+  width: 100%;
+  padding: 6px;
+  margin-top: 6px;
+}
+
+.filter-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.apply-button,
+.cancel-button {
+  flex: 1;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.apply-button {
+  background-color: #0a74da;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.cancel-button {
+  background-color: #ddd;
+  border: none;
+  border-radius: 4px;
+}
+
+.suggestion-box {
+  position: absolute;
+  background: white;
+  border: 1px solid #ccc;
+  z-index: 1000;
+  max-height: 150px;
+  overflow-y: auto;
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  width: 100%;
+}
+
+.suggestion-box li {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+}
+
+.suggestion-box li:hover {
+  background-color: #f0f0f0;
+}

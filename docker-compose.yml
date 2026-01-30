@@ -1,0 +1,56 @@
+services:
+  mongo:
+    image: mongo:6
+    container_name: tomato-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - tomato-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tomato-backend
+    restart: always
+    ports:
+      - "4000:4000"
+    env_file: ./backend/.env
+    environment:
+      - NODE_ENV=development
+      - MONGO_URI=mongodb://mongo:27017/tomato
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - mongo
+    networks:
+      - tomato-network
+    command: npm run server
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tomato-frontend
+    restart: always
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - tomato-network
+    command: npm run dev
+
+networks:
+  tomato-network:
+    driver: bridge
+
+volumes:
+  mongo-data:

@@ -1,0 +1,53 @@
+.verify {
+    min-height: 60vh;
+    display: grid;
+    place-items: center;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.verify .spinner {
+    width: 100px;
+    height: 100px;
+    border: 5px solid #bdbdbd;
+    border-top-color: tomato;
+    border-radius: 50%;
+    animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.status-message {
+    font-size: 1.5rem;
+    font-weight: 500;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    text-align: center;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.status-message.success {
+    color: green;
+    background-color: #e6ffe6;
+    border: 2px solid green;
+}
+
+.status-message.fail {
+    color: red;
+    background-color: #ffe6e6;
+    border: 2px solid red;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
