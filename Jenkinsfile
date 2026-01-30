@@ -116,29 +116,37 @@ EOF
 
     stage('Health check') {
       steps {
-        sh '''
-          set -e
+        withCredentials([string(credentialsId: 'ec2-ip', variable: 'REMOTE_IP')]) {
+          sh '''
+            set -e
+            
+            # Verify Backend (Port 4000 on Remote Server)
+            echo "Waiting for backend at http://$REMOTE_IP:4000..."
+            i=0
+            while [ $i -lt 30 ]; do
+              if curl -fsS "http://$REMOTE_IP:4000" >/dev/null 2>&1; then
+                echo "Backend OK"
+                break
+              fi
+              sleep 2
+              i=$((i+1))
+              if [ $i -ge 30 ]; then echo "Backend not ready"; exit 1; fi
+            done
 
-          echo "Waiting for backend..."
-          for i in {1..30}; do
-            if curl -fsS "$BACKEND_URL" >/dev/null 2>&1; then
-              echo "Backend OK"
-              break
-            fi
-            sleep 2
-            [ "$i" -eq 30 ] && echo "Backend not ready" && exit 1
-          done
-
-          echo "Waiting for frontend..."
-          for i in {1..30}; do
-            if curl -fsS "$FRONTEND_URL" >/dev/null 2>&1; then
-              echo "Frontend OK"
-              break
-            fi
-            sleep 2
-            [ "$i" -eq 30 ] && echo "Frontend not ready" && exit 1
-          done
-        '''
+            # Verify Frontend (Port 80 on Remote Server)
+            echo "Waiting for frontend at http://$REMOTE_IP:80..."
+            i=0
+            while [ $i -lt 30 ]; do
+              if curl -fsS "http://$REMOTE_IP:80" >/dev/null 2>&1; then
+                echo "Frontend OK"
+                break
+              fi
+              sleep 2
+              i=$((i+1))
+              if [ $i -ge 30 ]; then echo "Frontend not ready"; exit 1; fi
+            done
+          '''
+        }
       }
     }
 
