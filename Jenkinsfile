@@ -23,16 +23,6 @@ pipeline {
       }
     }
 
-    stage('Validate compose') {
-      steps {
-        sh '''
-          set -e
-          test -f "$COMPOSE_FILE"
-          docker compose -f "$COMPOSE_FILE" config >/dev/null
-        '''
-      }
-    }
-
     stage('Login to Docker Hub') {
       steps {
         // Requires 'docker-hub-login' credentials (Username with password) in Jenkins
@@ -57,6 +47,16 @@ JWT_SECRET=$JWT_SECRET_VAL
 EOF
           '''
         }
+      }
+    }
+
+    stage('Validate compose') {
+      steps {
+        sh '''
+          set -e
+          test -f "$COMPOSE_FILE"
+          docker compose -f "$COMPOSE_FILE" config >/dev/null
+        '''
       }
     }
 
