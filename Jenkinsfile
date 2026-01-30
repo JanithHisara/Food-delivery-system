@@ -69,6 +69,7 @@ EOF
       }
     }
 
+    /*
     stage('Deploy (Local)') {
       steps {
         sh '''
@@ -78,32 +79,42 @@ EOF
         '''
       }
     }
-
-    /* 
-    // Example: Deploy to Remote EC2 via SSH
-    // Requires 'ec2-ssh-key' (SSH Username with private key) in Jenkins
+    */
+ 
+    // Deploy to Remote EC2 via SSH
+    // Requires 'ec2-ssh-key' (SSH Username with private key) and 'ec2-ip' (Secret text) in Jenkins
     stage('Deploy (Remote EC2)') {
       steps {
-        sshagent(['ec2-ssh-key']) {
-          sh '''
-            # Zip files to transfer
-            tar -czf project.tar.gz docker-compose.prod.yml backend/ frontend/ nginx.conf
-            
-            # Copy files
-            scp -o StrictHostKeyChecking=no project.tar.gz ubuntu@<EC2_IP>:~/app/
-            
-            # Execute remote commands
-            ssh -o StrictHostKeyChecking=no ubuntu@<EC2_IP> "
-              cd ~/app
-              tar -xzf project.tar.gz
-              # Create .env on remote server or pass vars...
-              docker compose -f docker-compose.prod.yml up -d --build
-            "
-          '''
+        withCredentials([string(credentialsId: 'ec2-ip', variable: 'REMOTE_IP'), usernamePassword(credentialsId: 'docker-hub-login', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+          sshagent(['ec2-ssh-key']) {
+            sh '''
+              # 1. Login to Docker Hub on Remote Server
+              ssh -o StrictHostKeyChecking=no ubuntu@$REMOTE_IP "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
+
+              # 2. Zip files to transfer
+              tar -czf project.tar.gz docker-compose.prod.yml backend/ frontend/ nginx.conf
+              
+              # 3. Copy files to Remote Server
+              scp -o StrictHostKeyChecking=no project.tar.gz ubuntu@$REMOTE_IP:~/
+              
+              # 4. Execute remote commands
+              ssh -o StrictHostKeyChecking=no ubuntu@$REMOTE_IP "
+                # Extract files
+                mkdir -p app && mv project.tar.gz app/ && cd app
+                tar -xzf project.tar.gz
+                
+                # Re-create .env on remote server (simplest approach is to echo it again or use SCP)
+                # For now, we will just rely on the build context we sent or re-generate minimal env
+                
+                # Pull latest images (if you pushed them) or build on server
+                # We will build on server to keep it simple as defined in compose
+                docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+              "
+            '''
+          }
         }
       }
     }
-    */
 
     stage('Health check') {
       steps {

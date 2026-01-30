@@ -28,94 +28,36 @@ If you don't have a VPS yet, you can use the included Terraform scripts to creat
 
 ---
 
-## Part 1: Server Setup (One-time)
+## Part 1: Run Jenkins Locally (Docker)
 
-SSH into your VPS (`ssh -i key.pem ubuntu@<YOUR_Public_IP>`) and run the following commands to install Docker and Jenkins.
+Since you want to run Jenkins on your own computer but deploy to the EC2 server, we will run Jenkins in a Docker container locally.
 
-*Note: If you used the Terraform script, Docker is ALREADY INSTALLED thanks to the user_data script! You only need to check it and install Jenkins.*
+1.  **Open your Terminal/PowerShell** on your local machine.
+2.  **Run Jenkins** with the "SSH Agent" plugin support:
+    ```bash
+    docker run -d -p 8080:8080 -p 50000:50000 --name jenkins-local --restart=on-failure -v jenkins_home:/var/jenkins_home jenkins/jenkins:lts-jdk17
+    ```
+3.  **Unlock Jenkins**:
+    ```bash
+    docker exec jenkins-local cat /var/jenkins_home/secrets/initialAdminPassword
+    ```
+    *Copy this password and go to `http://localhost:8080` to finish setup.*
 
-### 1. Install Docker & Docker Compose
-*(Skip this if you used Terraform)*
-```bash
-# Update packages
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl gnupg
-
-# Add Docker's official GPG key
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-
-# Add the repository to Apt sources
-echo \
-  "deb [arch=\"$(dpkg --print-architecture)\" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  \"$(. /etc/os-release && echo "$VERSION_CODENAME")\" stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-# Install Docker
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-# Allow current user to run docker commands (so you don't need sudo)
-sudo usermod -aG docker $USER
-newgrp docker
-```
-
-### 2. Install Jenkins
-You can either install Jenkins on the host or run it as a Docker container. Running it on the host is often simpler for accessing the host's Docker socket.
-
-```bash
-# Install Java (Jenkins dependency)
-sudo apt-get install -y fontconfig openjdk-17-jre
-
-# Install Jenkins
-sudo wget -O /usr/share/keyrings/jenkins-keyring.asc \
-  https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
-echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc]" \
-  https://pkg.jenkins.io/debian-stable binary/ | sudo tee \
-  /etc/apt/sources.list.d/jenkins.list > /dev/null
-sudo apt-get update
-sudo apt-get install -y jenkins
-
-# Start Jenkins
-sudo systemctl enable jenkins
-sudo systemctl start jenkins
-
-# Give Jenkins user permission to use Docker
-sudo usermod -aG docker jenkins
-sudo systemctl restart jenkins
-```
-
-### 3. Unlock Jenkins
-1. Open your browser and go to `http://<YOUR_SERVER_IP>:8080`.
-2. Get the initial password:
-   ```bash
-   sudo cat /var/lib/jenkins/secrets/initialAdminPassword
-   ```
-3. Install "Suggested Plugins".
-4. Create your Admin user.
+4.  **Install Plugins**:
+    -   Select "Install Suggested Plugins".
+    -   **Important**: Go to Manage Jenkins -> Plugins -> Available. Search for and install **"SSH Agent"** plugin.
 
 ---
 
-## Part 2: Connect Jenkins to GitHub
+## Part 2: Connect Jenkins to GitHub (Local)
 
-### 1. Create a Pipeline Job
-1. In Jenkins Dashboard -> **New Item**.
-2. Enter a name (e.g., "FoodDelivery App") and select **Pipeline**. Click OK.
-3. Scroll to **Pipeline** section.
-4. Definition: **Pipeline script from SCM**.
-5. SCM: **Git**.
-6. Repository URL: `https://github.com/YourUsername/YourRepo.git`.
-7. Branch Specifier: `*/main`.
-8. Script Path: `Jenkinsfile`.
-9. Click **Save**.
+1.  Create a **New Item** -> **Pipeline** -> Name it "FoodDelivery".
+2.  **Pipeline Definition**: "Pipeline script from SCM".
+3.  **SCM**: Git.
+4.  **Repository URL**: `https://github.com/JanithHisara/Food-delivery-system`.
+5.  **Branch**: `*/main`.
 
-### 2. Configure Webhook (Auto-deploy on push)
-1. Go to your GitHub Repository -> **Settings** -> **Webhooks** -> **Add webhook**.
-2. Payload URL: `http://<YOUR_SERVER_IP>:8080/github-webhook/` (Don't forget the trailing slash!).
-3. Content type: `application/json`.
-4. Which events?: **Just the push event**.
-5. Click **Add webhook**.
+*Note: Since Jenkins is running locally, GitHub cannot send "Webhooks" to you unless you use a tool like ngrok. For now, you can just click "Build Now" manually when you push code.*
 
 ### 3. Configure Credentials (Essential for Security)
 
@@ -144,13 +86,19 @@ You must add these credentials in Jenkins for the pipeline to work.
 - **ID**: `jwt-secret`
 - **Description**: JWT Secret Key
 
-#### C. EC2 SSH Key (Optional - for Remote Deployment)
-If you want to deploy to a *different* server than where Jenkins is running:
+#### C. EC2 SSH Key (For Remote Deployment)
 - **Kind**: SSH Username with private key
 - **Scope**: Global
 - **ID**: `ec2-ssh-key`
-- **Username**: `ubuntu` (or `ec2-user` depending on OS)
-- **Private Key**: Select "Enter directly" and paste your `.pem` key content.
+- **Username**: `ubuntu`
+- **Private Key**: Paste content of your `deployer-key.pem`.
+
+#### D. EC2 IP Address
+- **Kind**: Secret text
+- **Scope**: Global
+- **Secret**: The Public IP of your EC2 instance (e.g., `3.219.216.177`)
+- **ID**: `ec2-ip`
+- **Description**: Public IP of EC2
 
 ---
 
