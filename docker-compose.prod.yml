@@ -1,0 +1,49 @@
+services:
+  mongo:
+    image: mongo:6
+    container_name: tomato-mongo-prod
+    restart: unless-stopped
+    ports:
+      - "27017:27017" # Optional: remove if you don't need external DB access
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - tomato-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: tomato-backend-prod
+    restart: unless-stopped
+    ports:
+      - "4000:4000" # Exposed internally to Nginx, but also mapped to host just in case (optional, can be removed to be internal only)
+    env_file: ./backend/.env
+    environment:
+      - NODE_ENV=production
+      # Ensure these are set in .env or via Jenkins credentials
+      - MONGO_URI=mongodb://mongo:27017/tomato
+    depends_on:
+      - mongo
+    networks:
+      - tomato-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: tomato-frontend-prod
+    restart: unless-stopped
+    ports:
+      - "80:80" # Standard HTTP port
+    depends_on:
+      - backend
+    networks:
+      - tomato-network
+
+networks:
+  tomato-network:
+    driver: bridge
+
+volumes:
+  mongo-data:

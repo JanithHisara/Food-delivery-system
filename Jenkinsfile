@@ -3,9 +3,9 @@ pipeline {
   options { timestamps() }
 
   environment {
-    COMPOSE_FILE = "docker-compose.yml"
+    COMPOSE_FILE = "docker-compose.prod.yml"
     BACKEND_URL  = "http://localhost:4000"
-    FRONTEND_URL = "http://localhost:5173"
+    FRONTEND_URL = "http://localhost:80"
   }
 
   stages {
@@ -33,20 +33,30 @@ pipeline {
       }
     }
 
-    stage('Ensure backend .env exists') {
+    stage('Login to Docker Hub') {
       steps {
-        sh '''
-          set -e
-          if [ ! -f backend/.env ]; then
-            echo "Creating backend/.env (dev defaults)..."
+        // Requires 'docker-hub-login' credentials (Username with password) in Jenkins
+        withCredentials([usernamePassword(credentialsId: 'docker-hub-login', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+          sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+        }
+      }
+    }
+
+    stage('Create Secrets') {
+      steps {
+        // Requires 'mongo-uri' and 'jwt-secret' (Secret text) in Jenkins
+        withCredentials([string(credentialsId: 'mongo-uri', variable: 'MONGO_URI_VAL'), string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET_VAL')]) {
+          sh '''
+            set -e
+            echo "Creating backend/.env from Jenkins secrets..."
             cat > backend/.env <<EOF
 PORT=4000
-NODE_ENV=development
-MONGO_URI=mongodb://mongo:27017/food_delivery
-JWT_SECRET=change-this
+NODE_ENV=production
+MONGO_URI=$MONGO_URI_VAL
+JWT_SECRET=$JWT_SECRET_VAL
 EOF
-          fi
-        '''
+          '''
+        }
       }
     }
 
@@ -59,15 +69,41 @@ EOF
       }
     }
 
-    stage('Deploy') {
+    stage('Deploy (Local)') {
       steps {
         sh '''
           set -e
-          docker compose -f "$COMPOSE_FILE" up -d
+          docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
           docker compose -f "$COMPOSE_FILE" ps
         '''
       }
     }
+
+    /* 
+    // Example: Deploy to Remote EC2 via SSH
+    // Requires 'ec2-ssh-key' (SSH Username with private key) in Jenkins
+    stage('Deploy (Remote EC2)') {
+      steps {
+        sshagent(['ec2-ssh-key']) {
+          sh '''
+            # Zip files to transfer
+            tar -czf project.tar.gz docker-compose.prod.yml backend/ frontend/ nginx.conf
+            
+            # Copy files
+            scp -o StrictHostKeyChecking=no project.tar.gz ubuntu@<EC2_IP>:~/app/
+            
+            # Execute remote commands
+            ssh -o StrictHostKeyChecking=no ubuntu@<EC2_IP> "
+              cd ~/app
+              tar -xzf project.tar.gz
+              # Create .env on remote server or pass vars...
+              docker compose -f docker-compose.prod.yml up -d --build
+            "
+          '''
+        }
+      }
+    }
+    */
 
     stage('Health check') {
       steps {
@@ -93,6 +129,14 @@ EOF
             sleep 2
             [ "$i" -eq 30 ] && echo "Frontend not ready" && exit 1
           done
+        '''
+      }
+    }
+
+    stage('Cleanup') {
+      steps {
+        sh '''
+          docker system prune -f || true
         '''
       }
     }
