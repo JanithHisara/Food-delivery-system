@@ -90,7 +90,7 @@ EOF
               ssh -o StrictHostKeyChecking=no ubuntu@$REMOTE_IP "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
 
               # 2. Zip files to transfer
-              tar -czf project.tar.gz docker-compose.prod.yml backend/ frontend/ nginx.conf
+              tar -czf project.tar.gz docker-compose.prod.yml backend/ frontend/
               
               # 3. Copy files to Remote Server
               scp -o StrictHostKeyChecking=no project.tar.gz ubuntu@$REMOTE_IP:~/
