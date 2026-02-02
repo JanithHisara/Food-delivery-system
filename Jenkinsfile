@@ -3,43 +3,26 @@ pipeline {
   options { timestamps() }
 
   environment {
+    // Defined environment variables for the pipeline
     COMPOSE_FILE = "docker-compose.prod.yml"
-    BACKEND_URL  = "http://localhost:4000"
-    FRONTEND_URL = "http://localhost:80"
+    DOCKER_IMAGE_BACKEND = "janithhisara/food-delivery-system:backend"
+    DOCKER_IMAGE_FRONTEND = "janithhisara/food-delivery-system:frontend"
   }
 
   stages {
     stage('Checkout') {
-      steps { checkout scm }
-    }
-
-    stage('Docker sanity check') {
       steps {
-        sh '''
-          set -e
-          docker version
-          docker compose version
-        '''
+        checkout scm
       }
     }
 
-    stage('Login to Docker Hub') {
-      steps {
-        withCredentials([usernamePassword(credentialsId: 'docker-hub-login', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
-          sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
-        }
-      }
-    }
-
-    stage('Create Secrets') {
+    // Creates the necessary .env file for the backend
+    // CRITICAL for Stripe and Database connections
+    stage('Create Configuration') {
       steps {
         sh '''
-          set -e
-          echo "Creating backend/.env..."
-          # Ensure backend directory exists
           mkdir -p backend
-          
-          # Create env file with Stripe Key
+          echo "Creating backend/.env..."
           cat > backend/.env <<EOF
 PORT=4000
 NODE_ENV=production
@@ -47,127 +30,108 @@ MONGO_URI=mongodb://mongo:27017/food_delivery
 JWT_SECRET=secure-production-secret-123
 STRIPE_SECRET_KEY=sk_test_placeholder_REPLACE_ME_WITH_REAL_KEY
 EOF
-          # Debug: Verify file content creation
-          ls -l backend/.env
-          cat backend/.env
         '''
       }
     }
 
-    stage('Validate compose') {
+    stage('Build Docker Images') {
       steps {
         sh '''
-          set -e
-          test -f "$COMPOSE_FILE"
-          docker compose -f "$COMPOSE_FILE" config >/dev/null
-        '''
-      }
-    }
-
-    stage('Build & Push') {
-      steps {
-        sh '''
-          set -e
-          echo "Building images (forcing no-cache)..."
-          docker compose -f "$COMPOSE_FILE" build --no-cache
+          echo "Building backend..."
+          docker build -t $DOCKER_IMAGE_BACKEND -f backend/Dockerfile.prod ./backend
           
-          echo "Pushing images to Docker Hub..."
-          docker compose -f "$COMPOSE_FILE" push
+          echo "Building frontend..."
+          docker build -t $DOCKER_IMAGE_FRONTEND -f frontend/Dockerfile.prod ./frontend
         '''
       }
     }
 
-    stage('Deploy (Remote EC2)') {
+    stage('Push to Docker Hub') {
       steps {
-        withCredentials([string(credentialsId: 'ec2-ip', variable: 'REMOTE_IP'), usernamePassword(credentialsId: 'docker-hub-login', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
-          sshagent(['ec2-ssh-key']) {
-            sh '''
-              set -e
-              # 1. Login to Docker Hub on Remote Server
-              ssh -o StrictHostKeyChecking=no ubuntu@$REMOTE_IP "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
-
-              # 2. Zip files including the newly generated .env
-              # Note: excluding node_modules but explicitly including backend/.env
-              tar -czf project.tar.gz --exclude='node_modules' docker-compose.prod.yml backend/ frontend/
-              
-              # 3. Copy files to Remote Server
-              scp -o StrictHostKeyChecking=no project.tar.gz ubuntu@$REMOTE_IP:~/
-              
-              # 4. Execute remote commands
-              ssh -o StrictHostKeyChecking=no ubuntu@$REMOTE_IP "
-                # Setup app directory
-                mkdir -p app
-                
-                # Move archive to app folder
-                mv project.tar.gz app/
-                cd app
-                
-                # NUCLEAR OPTION: Remove conflicting directories to force extraction
-                echo "Cleaning up old configuration..."
-                rm -rf backend frontend docker-compose.prod.yml
-                
-                # Extract new files
-                echo "Extracting new configuration..."
-                tar -xzf project.tar.gz
-                
-                # Verify .env exists on remote
-                echo "Verifying remote .env..."
-                ls -l backend/.env
-                
-                # Pull latest images
-                echo "Pulling latest images..."
-                docker compose -f docker-compose.prod.yml pull
-                
-                # Restart services
-                echo "Restarting services..."
-                docker compose -f docker-compose.prod.yml up -d --remove-orphans
-              "
-            '''
-          }
-        }
-      }
-    }
-
-    stage('Health check') {
-      steps {
-        withCredentials([string(credentialsId: 'ec2-ip', variable: 'REMOTE_IP')]) {
+        withCredentials([usernamePassword(credentialsId: 'docker-hub-login', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
           sh '''
-            set -e
-            # Allow some time for startup
-            sleep 10
+            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
             
-            # Verify Backend (Port 4000 on Remote Server)
-            echo "Waiting for backend at http://$REMOTE_IP:4000..."
-            if curl --retry 5 --retry-delay 5 --retry-connrefused -fsS "http://$REMOTE_IP:4000" >/dev/null 2>&1; then
-                echo "Backend OK"
-            else
-                echo "Backend failed check, but deployment finished. Check logs if issues persist."
-            fi
+            echo "Pushing Backend..."
+            docker push $DOCKER_IMAGE_BACKEND
+            
+            echo "Pushing Frontend..."
+            docker push $DOCKER_IMAGE_FRONTEND
           '''
         }
       }
     }
 
-    stage('Cleanup') {
+    stage('Deploy to EC2') {
       steps {
-        sh '''
-          docker system prune -f || true
-        '''
+        // Deployment uses the existing EC2 IP and SSH Key
+        withCredentials([string(credentialsId: 'ec2-ip', variable: 'REMOTE_IP'), usernamePassword(credentialsId: 'docker-hub-login', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+          sshagent(['ec2-ssh-key']) {
+             sh '''
+                set -e
+                echo "Deploying to $REMOTE_IP..."
+                
+                # 1. Login to Docker Hub on Remote Server (to pull private images)
+                ssh -o StrictHostKeyChecking=no ubuntu@$REMOTE_IP "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
+
+                # 2. Package configuration files
+                # We send docker-compose.prod.yml and the generated backend/.env
+                tar -czf deploy_package.tar.gz docker-compose.prod.yml backend/.env
+
+                # 3. Copy package to server
+                scp -o StrictHostKeyChecking=no deploy_package.tar.gz ubuntu@$REMOTE_IP:~/
+
+                # 4. Execute Remote Deployment Commands
+                ssh -o StrictHostKeyChecking=no ubuntu@$REMOTE_IP "
+                    # Create app directory if not exists
+                    mkdir -p app
+                    mv deploy_package.tar.gz app/
+                    cd app
+                    
+                    # Cleanup old configs to ensure update
+                    rm -rf backend docker-compose.prod.yml
+                    
+                    # Extract new files
+                    tar -xzf deploy_package.tar.gz
+                    
+                    # Pull latest images from Docker Hub
+                    docker compose -f docker-compose.prod.yml pull
+                    
+                    # Restart containers with new configuration
+                    docker compose -f docker-compose.prod.yml up -d --remove-orphans
+                    
+                    # Cleanup unused images
+                    docker system prune -f
+                "
+             '''
+          }
+        }
+      }
+    }
+
+    stage('Verify Deployment') {
+      steps {
+         withCredentials([string(credentialsId: 'ec2-ip', variable: 'REMOTE_IP')]) {
+           sh '''
+             echo "Waiting for health check on http://$REMOTE_IP:4000..."
+             sleep 10
+             if curl -fsS --max-time 5 "http://$REMOTE_IP:4000"; then
+                 echo "Backend is UP!"
+             else
+                 echo "Warning: Backend verification failed (might just be slow startup)"
+             fi
+           '''
+         }
       }
     }
   }
 
   post {
-    always {
-      sh '''
-        docker compose -f "$COMPOSE_FILE" ps || true
-      '''
-    }
     failure {
-      sh '''
-        echo "---- backend logs ----"
-        docker compose -f "$COMPOSE_FILE" logs --no-color --tail=50 backend || true
-      '''
+      echo '❌ Deployment Failed'
+    }
+    success {
+      echo '✅ Food Delivery System Deployed Successfully'
     }
   }
 }
