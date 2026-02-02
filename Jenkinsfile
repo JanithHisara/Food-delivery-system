@@ -58,11 +58,12 @@ EOF
       }
     }
 
-    stage('Build') {
+    stage('Build & Push') {
       steps {
         sh '''
           set -e
           docker compose -f "$COMPOSE_FILE" build
+          docker compose -f "$COMPOSE_FILE" push
         '''
       }
     }
@@ -89,8 +90,9 @@ EOF
               # 1. Login to Docker Hub on Remote Server
               ssh -o StrictHostKeyChecking=no ubuntu@$REMOTE_IP "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
 
-              # 2. Zip files to transfer
-              tar -czf project.tar.gz docker-compose.prod.yml backend/ frontend/
+              # 2. Zip files to transfer (Excluding node_modules to save bandwidth)
+              # We still send the context so compose doesn't complain, but we rely on pulled images.
+              tar -czf project.tar.gz --exclude='node_modules' docker-compose.prod.yml backend/ frontend/
               
               # 3. Copy files to Remote Server
               scp -o StrictHostKeyChecking=no project.tar.gz ubuntu@$REMOTE_IP:~/
@@ -101,12 +103,11 @@ EOF
                 mkdir -p app && mv project.tar.gz app/ && cd app
                 tar -xzf project.tar.gz
                 
-                # Re-create .env on remote server (simplest approach is to echo it again or use SCP)
-                # For now, we will just rely on the build context we sent or re-generate minimal env
+                # Pull latest images from Docker Hub
+                docker compose -f docker-compose.prod.yml pull
                 
-                # Pull latest images (if you pushed them) or build on server
-                # We will build on server to keep it simple as defined in compose
-                docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+                # Start services (no build)
+                docker compose -f docker-compose.prod.yml up -d --remove-orphans
               "
             '''
           }

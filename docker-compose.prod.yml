@@ -14,6 +14,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.prod
+    image: janithhisara/food-delivery-system:backend
     container_name: tomato-backend-prod
     restart: unless-stopped
     ports:
@@ -32,6 +33,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
+    image: janithhisara/food-delivery-system:frontend
     container_name: tomato-frontend-prod
     restart: unless-stopped
     ports:
