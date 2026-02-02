@@ -43,6 +43,7 @@ PORT=4000
 NODE_ENV=production
 MONGO_URI=mongodb://mongo:27017/food_delivery
 JWT_SECRET=secure-production-secret-123
+STRIPE_SECRET_KEY=sk_test_placeholder_REPLACE_ME_WITH_REAL_KEY
 EOF
         '''
       }
