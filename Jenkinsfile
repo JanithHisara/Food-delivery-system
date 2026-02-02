@@ -102,6 +102,10 @@ EOF
               ssh -o StrictHostKeyChecking=no ubuntu@$REMOTE_IP "
                 # Extract files
                 mkdir -p app && mv project.tar.gz app/ && cd app
+                
+                # Cleanup old files to ensure .env and code are updated
+                rm -rf backend frontend docker-compose.prod.yml
+                
                 tar -xzf project.tar.gz
                 
                 # Pull latest images from Docker Hub
