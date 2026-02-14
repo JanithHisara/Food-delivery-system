@@ -35,7 +35,12 @@ Since you want to run Jenkins on your own computer but deploy to the EC2 server,
 1.  **Open your Terminal/PowerShell** on your local machine.
 2.  **Run Jenkins** with the "SSH Agent" plugin support:
     ```bash
-    docker run -d -p 8080:8080 -p 50000:50000 --name jenkins-local --restart=on-failure -v jenkins_home:/var/jenkins_home jenkins/jenkins:lts-jdk17
+    ```bash
+    # Make the script executable
+    chmod +x jenkins/setup_jenkins.sh
+    
+    # Run the setup script (Builds custom image and runs container with Docker socket mounted)
+    ./jenkins/setup_jenkins.sh
     ```
 3.  **Unlock Jenkins**:
     ```bash
